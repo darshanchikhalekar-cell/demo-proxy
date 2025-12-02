@@ -1,42 +1,42 @@
 name: Deploy to Apigee
 
 on:
-  workflow_dispatch:  # allows the “Run Workflow” button
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-      - name: Set up Apigee CLI
-        run: |
-          curl -L https://raw.githubusercontent.com/apigee/apigeecli/main/downloadLatest.sh | sh -
-          sudo mv apigeecli /usr/local/bin/
+    - name: Install Apigee CLI
+      run: |
+        curl -L https://raw.githubusercontent.com/apigee/apigeecli/main/downloadLatest.sh | sh -
+        export PATH="$PATH:$HOME/.apigeecli/bin"
+        apigeecli version
 
-      - name: Deploy all proxies
-        run: |
-          echo "Deploying all proxies..."
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-          for proxy in src/main/apigee/apiproxies/*; do
-            echo "Deploying $(basename "$proxy")"
-            apigeecli apis import \
-              --org "$APIGEE_ORG" \
-              --proxy "$(basename "$proxy")" \
-              --file "$proxy" \
-              --token "$APIGEE_TOKEN"
+    - name: Set gcloud
+      uses: google-github-actions/setup-gcloud@v1
 
-            apigeecli apis deploy \
-              --org "$APIGEE_ORG" \
-              --env "$APIGEE_ENV" \
-              --name "$(basename "$proxy")" \
-              --rev latest \
-              --token "$APIGEE_TOKEN"
-          done
+    - name: Deploy API Proxy
+      run: |
+        export PATH="$PATH:$HOME/.apigeecli/bin"
 
-env:
-  APIGEE_ORG: ${{ secrets.APIGEE_ORG }}
-  APIGEE_ENV: ${{ secrets.APIGEE_ENV }}
-  APIGEE_TOKEN: ${{ secrets.APIGEE_TOKEN }}
+        apigeecli apis create bundle \
+          --name Imobile \
+          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --folder ./src/main/apigee/apiproxies/Imobile/apiproxy \
+          --format json
+
+        apigeecli apis deploy \
+          --name Imobile \
+          --environment ${{ secrets.APIGEE_ENV }} \
+          --project ${{ secrets.GCP_PROJECT_ID }} \
+          --format json
