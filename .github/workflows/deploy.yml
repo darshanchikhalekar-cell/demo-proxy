@@ -1,52 +1,36 @@
-name: Deploy to Apigee
+name: Deploy Proxy to Apigee
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v3
 
-    # Authenticate using Service Account JSON
-    - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v1
-      with:
-        credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - name: Install Apigee CLI
+        run: |
+          curl -L https://raw.githubusercontent.com/apigee/apigeecli/main/downloadLatest.sh | sh -
 
-    # Install apigeecli
-    - name: Install apigeecli
-      run: |
-        curl -L https://raw.githubusercontent.com/apigee/apigeecli/main/downloadLatest.sh | sh -
-        export PATH=$PATH:$HOME/.apigeecli/bin
-        echo "$HOME/.apigeecli/bin" >> $GITHUB_PATH
+      - name: Deploy API Proxy to Apigee
+        env:
+          APIGEE_ORG: ${{ secrets.APIGEE_ORG }}
+          APIGEE_ENV: ${{ secrets.APIGEE_ENV }}
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
 
-    # Save SA key to a file because apigeecli needs a file
-    - name: Save Service Account Key
-      run: |
-        echo '${{ secrets.GCP_SA_KEY }}' > sa.json
+        run: |
+          export PATH=$PATH:$HOME/.apigeecli/bin
 
-    # Deploy ALL proxies inside repo
-    - name: Deploy all proxies
-      run: |
-        export PATH=$PATH:$HOME/.apigeecli/bin
-
-        for proxy in $(ls -d */ | cut -f1 -d'/'); do
-          if [ -d "$proxy/apiproxy" ]; then
-            echo "🚀 Deploying $proxy ..."
-
-            apigeecli apis create bundle \
-              --org "${{ secrets.APIGEE_ORG }}" \
-              --env "${{ secrets.APIGEE_ENV }}" \
-              --name "$proxy" \
-              --proxy-folder "./$proxy/apiproxy" \
-              --safedeploy \
-              --ovr \
-              --account ./sa.json
-
-            echo "✅ Successfully deployed $proxy"
-          fi
-        done
+          apigeecli apis create bundle \
+            --org "$APIGEE_ORG" \
+            --env "$APIGEE_ENV" \
+            --name "book-my-show-proxy" \
+            --proxy-folder "./positive-bonbon-480005-d8-book-my-show-proxy/apiproxy" \
+            --account <(echo "$GCP_SA_KEY") \
+            --ovr \
+            --wait
