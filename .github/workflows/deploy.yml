@@ -1,36 +1,39 @@
-name: Deploy Proxy to Apigee
+name: deploy
 
 on:
-  workflow_dispatch:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Install Apigee CLI
         run: |
           curl -L https://raw.githubusercontent.com/apigee/apigeecli/main/downloadLatest.sh | sh -
-
-      - name: Deploy API Proxy to Apigee
-        env:
-          APIGEE_ORG: ${{ secrets.APIGEE_ORG }}
-          APIGEE_ENV: ${{ secrets.APIGEE_ENV }}
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
-
-        run: |
           export PATH=$PATH:$HOME/.apigeecli/bin
 
-          apigeecli apis create bundle \
-            --org "$APIGEE_ORG" \
-            --env "$APIGEE_ENV" \
-            --name "book-my-show-proxy" \
-            --proxy-folder "./positive-bonbon-480005-d8-book-my-show-proxy/apiproxy" \
-            --account <(echo "$GCP_SA_KEY") \
-            --ovr \
-            --wait
+      - name: Save GCP SA Key to file
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > service-account.json
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Deploy API Proxy to Apigee
+        run: |
+          export PATH=$PATH:$HOME/.apigeecli/bin
+          echo "Deploying proxy..."
+
+          # Debug: show structure
+          ls -R ./src/main/apigee/apiproxies/
+
+          # Deploy proxy with correct folder
+          apigeecli apis cr
